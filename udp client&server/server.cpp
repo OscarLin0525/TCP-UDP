@@ -6,9 +6,15 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <algorithm> // for std::transform
+#include <cctype>
+#include <string>
 
-#define serverPort 48763
-
+#define SERVER_PORT 48763
+#define BUF_SIZE 1024
+// old version to implement the toupper() function. align to the low level concept 
+// single instruction is very silghtly faster than function call
+/*
 char *convert(char *src){
     char *iter = src;
     char *result = new char[strlen(src) + 1];
@@ -22,22 +28,32 @@ char *convert(char *src){
         *it++ = *iter++ & ~0x20; // 0x00000020(16) == 32(10) transform to uppercase
     }
     *it = '\0';
+    // function can not just free the source itself, it should be freed by the caller 
+    // free(result);
+    return result;
+}
+*/
+// modern version to implement the toupper() function
+std::string convert(const std::string& input_str){
+    std::string result = input_str;
+    std::transform(result.begin(), result.end(), result.begin(),
+                   [](unsigned char c){ return std::toupper(c); });
     return result;
 }
 
 int main(){
-    char buf[1024] = {0};
+    char buf[BUF_SIZE] = {0};
     int socket_fd = socket(PF_INET, SOCK_DGRAM, 0);
     if(socket_fd < 0){
         printf("Fail to create a socket.");
     }
 
     // Correct, universally compatible way for the client
-    struct sockaddr_in serverAddr;
-    memset(&serverAddr, 0, sizeof(serverAddr)); // Good practice to zero out the struct first
+    struct sockaddr_in serverAddr = {};
+    // memset(&serverAddr, 0, sizeof(serverAddr)); // Good practice to zero out the struct first
 
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(serverPort);
+    serverAddr.sin_port = htons(SERVER_PORT);
     serverAddr.sin_addr.s_addr = INADDR_ANY; // Assign members one by one
 
     
@@ -50,31 +66,34 @@ int main(){
 
     printf("Server ready!\n");
 
-    struct  sockaddr_in clientAddr;
+    struct sockaddr_in clientAddr;
     u_int32_t len = sizeof(clientAddr);
     while(1){
-        if(recvfrom(socket_fd, buf, sizeof(buf), 0, (struct sockaddr *)&clientAddr, &len) < 0){
+        // recvfrom() is a blocking function
+        int bytes_received = recvfrom(socket_fd, buf, sizeof(buf)-1, 0, (struct sockaddr *)&clientAddr, &len);
+        if(bytes_received < 0){
+            perror("Receive data failed!");
             break;
         }
 
-        if(strcmp(buf, "exit") == 0){
+        std::string message(buf, bytes_received);
+        if(message == "exit"){
             printf("Exit command received. Shutting down server.\n");
             break;
 
         }
 
-        char *conv = convert(buf);
+        std::string conv = convert(message);
         // transform bin to human readable ip address(ex: 192.168.0.3)
-        printf("get message from [%s:%d]: ", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-        printf("%s -> %s\n", buf, conv);
+        char client_ip[INET_ADDRSTRLEN] = {0};
+        printf("get message from [%s:%d]: ", inet_ntop(AF_INET, &clientAddr.sin_addr, client_ip, INET_ADDRSTRLEN), ntohs(clientAddr.sin_port));
+        printf("%s -> %s\n", buf, conv.c_str());
 
-        sendto(socket_fd, conv, strlen(conv), 0, (struct sockaddr *)&clientAddr, len);
+        sendto(socket_fd, conv.c_str(), conv.size(), 0, (struct sockaddr *)&clientAddr, len);
         memset(buf, 0, sizeof(buf));
-        free(conv);
+        // do not manually free the allocated memory 
+        // free(conv);
     }
-
-    if(socket_fd < 0){
-        perror("close socket failed!");
-    }
+    close(socket_fd);
     return 0;
 }
