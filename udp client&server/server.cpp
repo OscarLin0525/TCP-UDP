@@ -80,7 +80,6 @@ int main(){
         if(message == "exit"){
             printf("Exit command received. Shutting down server.\n");
             break;
-
         }
 
         std::string conv = convert(message);
