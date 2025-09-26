@@ -14,7 +14,7 @@ int main(){
     char buf[BUF_SIZE] = {0};
     char recvbuf[BUF_SIZE] = {0};
 
-    int socket_fd = socket(PF_INET, SOCK_STREAM, 0);
+    int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(socket_fd < 0){
         perror("socket() error");
         return -1;

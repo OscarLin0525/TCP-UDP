@@ -43,7 +43,7 @@ std::string convert(const std::string& input_str){
 
 int main(){
     char buf[BUF_SIZE] = {0};
-    int socket_fd = socket(PF_INET, SOCK_DGRAM, 0);
+    int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(socket_fd < 0){
         printf("Fail to create a socket.");
     }
@@ -57,7 +57,7 @@ int main(){
     serverAddr.sin_addr.s_addr = INADDR_ANY; // Assign members one by one
 
     
-    // bind the socket to assign port 
+    // bind the socket to assign address and port 
     if (bind(socket_fd, (const struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0){
         perror("Bind socket failed!");
         close(socket_fd);

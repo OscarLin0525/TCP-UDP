@@ -29,4 +29,5 @@ int main(){
         printf("wrong address2\n");
     }
     printf("address %s, ip address = %u\n", addr2, naddr2);
+    return 0;
 }

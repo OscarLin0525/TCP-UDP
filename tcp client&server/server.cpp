@@ -18,6 +18,7 @@ pthread_t clients[BACKLOG];
 pthread_t tid;
 
 
+// make sure the message is transmitted to server
 std::string convert(const std::string& input_str){
     std::string result = input_str;
     std::transform(result.begin(), result.end(), result.begin(),[](unsigned char c) { return std::toupper(c); });
@@ -43,7 +44,7 @@ void* clientSocket(void *param){
         char *conv = (char*)malloc(sizeof(buf));
         memcpy(conv, convert(buf).c_str(), sizeof(buf));
 
-         printf("get message from [%s:%d]: ",
+        printf("get message from [%s:%d]: ",
                 inet_ntoa(info->clientAddr.sin_addr), ntohs(info->clientAddr.sin_port));
         printf("%s -> %s\n", buf, conv);
 
@@ -72,4 +73,54 @@ int main(){
     char buf[BUF_SIZE];
     int client_index = 0;
     
+    int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(socket_fd<0){
+        perror("socket() error");
+        return -1;
+    }
+
+
+    struct sockaddr_in serverAddr ={};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(serverPort);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if(bind(socket_fd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr))<0){
+        perror("bind socket failed");
+        close(socket_fd);
+        exit(0);
+    }
+
+    if(listen(socket_fd, BACKLOG)==-1){
+        perror("listen error");
+        close(socket_fd);
+        exit(0);
+    }
+
+    printf("server [%s:%d] --- ready\n", 
+            inet_ntoa(serverAddr.sin_addr), ntohs(serverAddr.sin_port));
+
+    struct client_info *newClientinfo = new client_info;
+    while(1){
+        int reply_sockfd;
+        struct sockaddr_in clientAddr;
+        int client_len = sizeof(clientAddr);
+
+        reply_sockfd = accept(socket_fd, (struct sockaddr *)&clientAddr, (socklen_t*)&client_len);
+        printf("Accept connect request from [%s:%d]\n", 
+                inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+
+        memcpy(&newClientinfo->sockfd, &reply_sockfd, sizeof(int));
+        memcpy(&newClientinfo->clientAddr, &clientAddr, sizeof(struct sockaddr_in));
+
+        if(pthread_create(&clients[client_index++], NULL, clientSocket, (void*)newClientinfo) != 0){
+            perror("pthread_create() error");
+            free(newClientinfo);
+        }
+    }
+    delete newClientinfo;
+    if(close(socket_fd)<0){
+        perror("close socket fail");
+    }
+    return 0;
 }
