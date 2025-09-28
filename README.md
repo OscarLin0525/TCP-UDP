@@ -1,3 +1,3 @@
 # TCP-UDP
 
-Network implementation of UDP and TCP
+Network implementation of UDP and TCP using c++. 
